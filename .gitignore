@@ -1,5 +1,5 @@
 *.exe
-build/
+build*/
 .project
 .cproject
 bin/
@@ -8,4 +8,4 @@ run-msbuild.bat
 .cache/
 .clangd/
 *.swp
-huh
+*.bak
