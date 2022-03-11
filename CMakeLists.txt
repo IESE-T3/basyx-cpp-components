@@ -54,7 +54,7 @@ else()
     ### BaSyx C++ SDK ###
     FetchContent_Declare(
 	    basyx_cpp_sdk
-	    GIT_REPOSITORY https://github.com/eclipse-basyx/basyx-cpp-sdk
+	    GIT_REPOSITORY https://github.com/IESE-T3/basyx-cpp-sdk
 	    GIT_TAG development_v2
     )
 
