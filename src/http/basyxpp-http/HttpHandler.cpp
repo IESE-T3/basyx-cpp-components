@@ -6,6 +6,8 @@
 
 #include <basyx/util/algorithm/string.hpp>
 
+#include <exception>
+
 namespace basyx {
 namespace http {
 
@@ -177,7 +179,7 @@ void HttpHandler::run()
 {
 	spdlog::info("Starting server on {}:{}", host, port);
 	if (!server.bind_to_port(host.c_str(), port))
-		throw std::exception("port not available!");
+		throw std::runtime_error("port not available!");
 
 	server.listen_after_bind();
 }
