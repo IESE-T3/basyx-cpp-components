@@ -102,8 +102,132 @@ HttpHandler::HttpHandler(util::string_view host, int port)
 
 	server.Get(R"(/shells/(\w+)/aas/submodels/(\w+)/submodel/submodelElements/((?:\w|/)+)/value)", [this](const httplib::Request& req, httplib::Response& res)
 	{
-		int j = 2;
+		auto aas_id = req.matches[1];
+		auto submodel_id = req.matches[2];
+		auto path = util::string_view{ req.matches[3].first, req.matches[3].second };
+
+		auto shell = this->api->getAssetAdministrationShell(aas_id.str());
+		if (!shell) {
+			res.status = 404;
+			return;
+		};
+
+		auto submodel = shell->getSubmodels().get(submodel_id.str());
+		if (!submodel) {
+			res.status = 404;
+			return;
+		};
+
+		auto path_splits = util::algorithm::string::split(path, '/');
+		if (path_splits.empty()) {
+			res.status = 404;
+			return;
+		};
+
+		auto it = path_splits.begin();
+
+		auto element = submodel->getSubmodelElements().get(*it);
+		if (element == nullptr) {
+			res.status = 404;
+			return;
+		};
+
+		for (++it; it != path_splits.end(); ++it) {
+			if (SubmodelElementHelper::IsSubmodelElementCollection(*element)) {
+				auto coll = SubmodelElement::element_cast<SubmodelElementCollection>(element);
+				element = coll->getSubmodelElements().get(*it);
+
+				if (element == nullptr) {
+					res.status = 404;
+					return;
+				};
+			}
+			else {
+				res.status = 404;
+				return;
+			};
+		}
+
+		if (SubmodelElementHelper::IsProperty(*element)) {
+			auto prop = SubmodelElement::element_cast<property_base>(element);
+			auto value = prop->get_value_as_string();
+			if (value) {
+				res.set_content( json_t(*value).dump(4), "application/json");
+			}
+			else {
+				res.set_content("{}", "application/json");
+			};
+			res.status = 200;
+			return;
+		};
+
+		res.status = 404;
 	});
+
+	server.Put(R"(/shells/(\w+)/aas/submodels/(\w+)/submodel/submodelElements/((?:\w|/)+)/value)", [this](const httplib::Request& req, httplib::Response& res)
+		{
+			auto aas_id = req.matches[1];
+			auto submodel_id = req.matches[2];
+			auto path = util::string_view{ req.matches[3].first, req.matches[3].second };
+
+			auto value = json_t::parse(req.body);
+			if (!value.is_primitive()) {
+				res.status = 400;
+				return;
+			}
+
+			auto shell = this->api->getAssetAdministrationShell(aas_id.str());
+			if (!shell) {
+				res.status = 404;
+				return;
+			};
+
+			auto submodel = shell->getSubmodels().get(submodel_id.str());
+			if (!submodel) {
+				res.status = 404;
+				return;
+			};
+
+			auto path_splits = util::algorithm::string::split(path, '/');
+			if (path_splits.empty()) {
+				res.status = 404;
+				return;
+			};
+
+			auto it = path_splits.begin();
+
+			auto element = submodel->getSubmodelElements().get(*it);
+			if (element == nullptr) {
+				res.status = 404;
+				return;
+			};
+
+			for (++it; it != path_splits.end(); ++it) {
+				if (SubmodelElementHelper::IsSubmodelElementCollection(*element)) {
+					auto coll = SubmodelElement::element_cast<SubmodelElementCollection>(element);
+					element = coll->getSubmodelElements().get(*it);
+
+					if (element == nullptr) {
+						res.status = 404;
+						return;
+					};
+				}
+				else {
+					res.status = 404;
+					return;
+				};
+			}
+
+			if (SubmodelElementHelper::IsProperty(*element)) {
+				auto prop = SubmodelElement::element_cast<property_base>(element);
+				if (prop->set_value_from_string(req.body)) {
+					res.status = 204;
+					return;
+				};
+			};
+
+			res.status = 404;
+		});
 
 	server.Get(R"(/shells/(\w+)/aas/submodels/(\w+)/submodel/submodelElements/((?:\w|/)+))", [this](const httplib::Request& req, httplib::Response& res)
 	{
@@ -153,8 +277,6 @@ HttpHandler::HttpHandler(util::string_view host, int port)
 				return;
 			};
 		}
-
-		SubmodelElement::is_element_type<SubmodelElementCollection>(element);
 
 		res.set_content(basyx::serialization::json::serialize(*element).dump(4), "application/json");
 		res.status = 200;
